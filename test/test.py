@@ -1,40 +1,51 @@
-# SPDX-FileCopyrightText: © 2024 Tiny Tapeout
-# SPDX-License-Identifier: Apache-2.0
-
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles
+from cocotb.triggers import RisingEdge, ClockCycles
 
+async def shift_feature(dut, value):
+
+    dut.ui_in.value = (1 << 1) | value
+
+    await RisingEdge(dut.clk)
 
 @cocotb.test()
-async def test_project(dut):
-    dut._log.info("Start")
+async def retina_tm_test(dut):
 
-    # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, unit="us")
-    cocotb.start_soon(clock.start())
+    cocotb.start_soon(
+        Clock(dut.clk, 10, units="ns").start()
+    )
 
-    # Reset
-    dut._log.info("Reset")
+    dut.rst_n.value = 0
     dut.ena.value = 1
+
     dut.ui_in.value = 0
     dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 10)
+
+    await ClockCycles(dut.clk, 5)
+
     dut.rst_n.value = 1
 
-    dut._log.info("Test project behavior")
+    # Load 32-bit feature vector
+    for i in range(32):
 
-    # Set the input values you want to test
-    dut.ui_in.value = 20
-    dut.uio_in.value = 30
+        if i < 12:
+            await shift_feature(dut, 1)
+        else:
+            await shift_feature(dut, 0)
 
-    # Wait for one clock cycle to see the output values
-    await ClockCycles(dut.clk, 1)
+    dut.ui_in.value = 0
 
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 50
+    await ClockCycles(dut.clk, 5)
 
-    # Keep testing the module by changing the input values, waiting for
-    # one or more clock cycles, and asserting the expected output values.
+    # Start inference
+    dut.ui_in.value = (1 << 2)
+
+    await ClockCycles(dut.clk, 5)
+
+    triage = dut.uo_out.value.integer & 0b11
+
+    assert triage >= 0
+
+    glaucoma = (dut.uo_out.value.integer >> 2) & 1
+
+    assert glaucoma in [0, 1]
