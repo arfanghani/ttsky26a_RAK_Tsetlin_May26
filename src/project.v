@@ -12,58 +12,42 @@ module tt_um_arfanghani_tsetlin_top (
 );
 
     // -------------------------
-    // FEATURE STORAGE
+    // SIMPLE FEATURE SHIFT REGISTER
     // -------------------------
-    reg [7:0] feature_vector;
-    reg [4:0] bit_count;
+    reg [7:0] features;
 
     wire load_en   = ui_in[1];
     wire infer_req = ui_in[2];
+    wire bit_in    = ui_in[0];
 
-    integer i;
+    reg [3:0] count;
 
     // -------------------------
-    // LOAD FEATURES (serial)
+    // LOAD FEATURES
     // -------------------------
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            feature_vector <= 0;
-            bit_count <= 0;
+            features <= 8'd0;
+            count    <= 4'd0;
         end else if (ena && load_en) begin
-            feature_vector <= {feature_vector[6:0], ui_in[0]};
-            bit_count <= bit_count + 1;
+            features <= {features[6:0], bit_in};
+            if (count < 8)
+                count <= count + 1;
         end
     end
 
-    wire loaded = (bit_count >= 8);
+    wire loaded = (count >= 8);
 
     // -------------------------
-    // SIMPLE CLAUSE ENGINE (SAFE WIDTHS)
+    // TSETLIN-LIKE CLAUSES (SAFE)
     // -------------------------
-    wire clause0 = feature_vector[0] & feature_vector[1];
-    wire clause1 = feature_vector[2] & ~feature_vector[3];
-    wire clause2 = feature_vector[4] & feature_vector[5];
-    wire clause3 = feature_vector[6] | feature_vector[7];
+    wire c0 = features[0] & features[1];
+    wire c1 = features[2] & ~features[3];
+    wire c2 = features[4] & features[5];
+    wire c3 = features[6] | features[7];
 
-    wire [3:0] vote_sum =
-        {3'b0, clause0} +
-        {3'b0, clause1} +
-        {3'b0, clause2} +
-        {3'b0, clause3};
-
-    // -------------------------
-    // LATCH INFERENCE (FIXED CRITICAL BUG)
-    // -------------------------
-    reg infer_latched;
-
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            infer_latched <= 0;
-        else if (ena && infer_req && loaded)
-            infer_latched <= 1;
-        else
-            infer_latched <= 0;
-    end
+    wire [3:0] vote =
+        c0 + c1 + c2 + c3;
 
     // -------------------------
     // CLASSIFICATION
@@ -73,29 +57,30 @@ module tt_um_arfanghani_tsetlin_top (
     always @(*) begin
         if (!loaded)
             class = 2'b00;
-        else if (vote_sum <= 1)
-            class = 2'b00; // NORMAL
-        else if (vote_sum == 2)
-            class = 2'b01; // REFER
+        else if (vote <= 1)
+            class = 2'b00;
+        else if (vote == 2)
+            class = 2'b01;
         else
-            class = 2'b10; // URGENT
+            class = 2'b10;
     end
 
     // -------------------------
-    // OUTPUT REGISTER
+    // OUTPUT
     // -------------------------
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            uo_out <= 0;
+            uo_out <= 8'd0;
         end else begin
             uo_out[1:0] <= class;
-            uo_out[2]   <= infer_latched;
             uo_out[3]   <= loaded;
-            uo_out[7:4] <= vote_sum;
+            uo_out[7:4] <= vote;
         end
     end
 
-    assign uio_out = feature_vector;
+    assign uio_out = features;
     assign uio_oe  = 8'b0;
 
 endmodule
+
+`default_nettype wire
