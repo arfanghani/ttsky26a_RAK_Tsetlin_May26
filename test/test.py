@@ -15,6 +15,7 @@ async def retina_tm_test(dut):
         Clock(dut.clk, 10, units="ns").start()
     )
 
+    # Initialize
     dut.rst_n.value = 0
     dut.ena.value = 1
 
@@ -23,9 +24,12 @@ async def retina_tm_test(dut):
 
     await ClockCycles(dut.clk, 5)
 
+    # Release reset
     dut.rst_n.value = 1
 
-    # Load 32-bit feature vector
+    await ClockCycles(dut.clk, 2)
+
+    # Load feature vector
     for i in range(32):
 
         if i < 12:
@@ -33,6 +37,7 @@ async def retina_tm_test(dut):
         else:
             await shift_feature(dut, 0)
 
+    # Stop loading
     dut.ui_in.value = 0
 
     await ClockCycles(dut.clk, 5)
@@ -40,12 +45,14 @@ async def retina_tm_test(dut):
     # Start inference
     dut.ui_in.value = (1 << 2)
 
-    await ClockCycles(dut.clk, 5)
+    await ClockCycles(dut.clk, 2)
 
     triage = dut.uo_out.value.integer & 0b11
-
-    assert triage >= 0
-
     glaucoma = (dut.uo_out.value.integer >> 2) & 1
 
+    cocotb.log.info(f"Triage={triage}")
+    cocotb.log.info(f"Glaucoma={glaucoma}")
+
     assert glaucoma in [0, 1]
+
+    await ClockCycles(dut.clk, 5)
