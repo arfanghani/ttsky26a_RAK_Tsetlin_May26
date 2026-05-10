@@ -25,13 +25,15 @@ module tb;
         .rst_n(rst_n)
     );
 
+    // Clock generation
     always #5 clk = ~clk;
 
+    // Verilog-compatible task
     task shift_feature;
-        input bit v;
+        input v;
         begin
             ui_in[0] = v;
-            ui_in[1] = 1;
+            ui_in[1] = 1'b1;
             #10;
         end
     endtask
@@ -41,20 +43,20 @@ module tb;
     initial begin
 
         $dumpfile("tb.vcd");
-
         $dumpvars(0, tb);
 
         clk = 0;
         rst_n = 0;
-        ena = 1;
+        ena = 1'b1;
 
-        ui_in = 0;
-        uio_in = 0;
+        ui_in = 8'b0;
+        uio_in = 8'b0;
 
+        // Reset
         #20;
-        rst_n = 1;
+        rst_n = 1'b1;
 
-        // Load feature vector
+        // Load 32-bit feature vector
         for (i = 0; i < 32; i = i + 1) begin
 
             if (i < 12)
@@ -63,12 +65,18 @@ module tb;
                 shift_feature(1'b0);
         end
 
-        ui_in[1] = 0;
+        // Stop loading
+        ui_in[1] = 1'b0;
 
         #20;
 
         // Start inference
-        ui_in[2] = 1;
+        ui_in[2] = 1'b1;
+
+        #20;
+
+        // Stop inference trigger
+        ui_in[2] = 1'b0;
 
         #50;
 
